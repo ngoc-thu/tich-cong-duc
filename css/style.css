@@ -1,6 +1,61 @@
 * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-body { overflow:hidden; background:#ffffff; cursor:pointer; font-family:'Noto Serif',serif; }
-canvas { display:block; -webkit-tap-highlight-color: transparent; touch-action: none; }
+body {
+    overflow:hidden;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(255,232,190,0.95) 0%, rgba(255,244,224,0.86) 18%, rgba(255,248,238,0.35) 36%, rgba(255,255,255,0) 58%),
+        linear-gradient(180deg, #fff7ec 0%, #fffaf4 45%, #f9efe4 100%);
+    cursor:pointer;
+    font-family:'Noto Serif',serif;
+    transition: background-color 0.8s ease;
+}
+canvas { display:block; -webkit-tap-highlight-color: transparent; touch-action: none; position:relative; z-index:1; }
+
+.bg-halo,
+.bg-orb,
+.bg-mist {
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+}
+
+.bg-halo {
+    z-index:0;
+    background:
+        radial-gradient(circle at 50% 16%, rgba(255,212,120,0.42) 0%, rgba(255,224,168,0.18) 18%, rgba(255,255,255,0) 46%),
+        radial-gradient(circle at 50% 78%, rgba(214,176,108,0.13) 0%, rgba(255,255,255,0) 42%);
+    filter: blur(10px);
+}
+
+.bg-orb {
+    z-index:0;
+    width:38vw;
+    height:38vw;
+    border-radius:50%;
+    inset:auto;
+    filter: blur(28px);
+    opacity:0.38;
+}
+
+.bg-orb-left {
+    left:-10vw;
+    bottom:-8vw;
+    background:radial-gradient(circle, rgba(255,208,150,0.7) 0%, rgba(255,227,196,0.22) 42%, rgba(255,255,255,0) 72%);
+}
+
+.bg-orb-right {
+    right:-8vw;
+    top:8vh;
+    background:radial-gradient(circle, rgba(255,233,188,0.75) 0%, rgba(255,238,214,0.24) 40%, rgba(255,255,255,0) 72%);
+}
+
+.bg-mist {
+    z-index:0;
+    background:
+        radial-gradient(ellipse at 20% 100%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 45%),
+        radial-gradient(ellipse at 80% 100%, rgba(255,246,235,0.75) 0%, rgba(255,255,255,0) 44%),
+        radial-gradient(ellipse at 50% 100%, rgba(255,236,220,0.42) 0%, rgba(255,255,255,0) 50%);
+    animation: mistBreath 8s ease-in-out infinite alternate;
+}
 
 #ui {
     position:absolute; top:30px; left:40px; text-align:left; z-index:10; pointer-events:none;
@@ -151,7 +206,6 @@ canvas { display:block; -webkit-tap-highlight-color: transparent; touch-action: 
 #btn-share:hover { background:#f5e8d3; }
 
 /* ── Background Mood ───────────── */
-body { transition: background-color 0.8s ease; }
 
 /* ── Merit Pop ─────────────────── */
 @keyframes meritPop { 0%{transform:scale(1.4)} 60%{transform:scale(0.92)} 100%{transform:scale(1)} }
@@ -212,4 +266,9 @@ body { transition: background-color 0.8s ease; }
 @keyframes thanksFadeIn {
     from { opacity:0; transform:scale(0.8); }
     to   { opacity:1; transform:scale(1); }
+}
+
+@keyframes mistBreath {
+    from { transform: translateY(0) scale(1); opacity: 0.85; }
+    to   { transform: translateY(-8px) scale(1.03); opacity: 1; }
 }

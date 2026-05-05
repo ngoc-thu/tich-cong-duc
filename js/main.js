@@ -232,7 +232,7 @@ function showPlusOne(x, y, earned, multiplier) {
 
 // Three.js Setup
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0xffffff, 0.025);
+scene.fog = new THREE.FogExp2(0xfff5ea, 0.018);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -240,7 +240,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setClearColor(0xffffff, 1);
+renderer.setClearColor(0xfffaf4, 0);
 document.body.appendChild(renderer.domElement);
 
 // Responsive sizing
@@ -261,18 +261,22 @@ window.addEventListener('resize', resize);
 resize();
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+scene.add(new THREE.AmbientLight(0xfff3e0, 1.0));
 
-const dirLight = new THREE.DirectionalLight(0xffeedd, 0.8);
+const dirLight = new THREE.DirectionalLight(0xffe2b8, 1.15);
 dirLight.position.set(5, 10, 5);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 1024;
 dirLight.shadow.mapSize.height = 1024;
 scene.add(dirLight);
 
-const rimLight = new THREE.DirectionalLight(0xaaccff, 0.4);
+const rimLight = new THREE.DirectionalLight(0xfff8ef, 0.55);
 rimLight.position.set(-5, 5, -5);
 scene.add(rimLight);
+
+const topGlow = new THREE.PointLight(0xffd38a, 0.9, 18);
+topGlow.position.set(0, 9, 1);
+scene.add(topGlow);
 
 // Audio Setup
 const hitSoundMo = new Audio('assets/sounds/mo.mp3');
@@ -316,6 +320,21 @@ function createSmokeTexture() {
 }
 const smokeTex = createSmokeTexture();
 
+function createGradientTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#fff3d8');
+    grad.addColorStop(0.35, '#fff8ef');
+    grad.addColorStop(0.7, '#f7efe6');
+    grad.addColorStop(1, '#efe0cf');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return new THREE.CanvasTexture(canvas);
+}
+const backdropTex = createGradientTexture();
+
 // Materials setup
 const moMaterial = new THREE.MeshStandardMaterial({
     map: woodTex,
@@ -348,6 +367,20 @@ const brassDark = new THREE.MeshStandardMaterial({
     color: 0x8B6508, roughness: 0.4, metalness: 0.8
 });
 
+const backdropMat = new THREE.MeshBasicMaterial({
+    map: backdropTex,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+});
+
+const glowMat = new THREE.MeshBasicMaterial({
+    color: 0xffd28a,
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false
+});
+
 const duiShaftMat = new THREE.MeshStandardMaterial({
     color: 0xEEDC82, roughness: 0.8, metalness: 0.05
 });
@@ -357,6 +390,22 @@ const duiHeadMat = new THREE.MeshStandardMaterial({
 
 
 // Models
+const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(36, 24), backdropMat);
+backdrop.position.set(0, 5.5, -14);
+scene.add(backdrop);
+
+const sunGlow = new THREE.Mesh(new THREE.CircleGeometry(3.2, 64), glowMat);
+sunGlow.position.set(0, 7.2, -13.8);
+scene.add(sunGlow);
+
+const floorGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(7.8, 64),
+    new THREE.MeshBasicMaterial({ color: 0xe7cfa8, transparent: true, opacity: 0.18, depthWrite: false })
+);
+floorGlow.rotation.x = -Math.PI / 2;
+floorGlow.position.set(0, -0.72, -0.3);
+scene.add(floorGlow);
+
 const moGroup = new THREE.Group();
 const moMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 32), moMaterial);
 moMesh.scale.set(1.1, 0.7, 1);
@@ -446,7 +495,7 @@ nhangGroup.position.set(0, 1.3, -5);
 scene.add(nhangGroup);
 
 // Smoke Particle System (Custom Shader for Realism)
-const particleCount = 120;
+const particleCount = 180;
 const smokeGeo = new THREE.BufferGeometry();
 const smokePos = new Float32Array(particleCount * 3);
 const smokeAges = new Float32Array(particleCount);
@@ -490,6 +539,45 @@ const smokeMaterial = new THREE.ShaderMaterial({
 });
 const smokeParticles = new THREE.Points(smokeGeo, smokeMaterial);
 scene.add(smokeParticles);
+
+const emberCount = 22;
+const emberGeo = new THREE.BufferGeometry();
+const emberPos = new Float32Array(emberCount * 3);
+const emberPhase = new Float32Array(emberCount);
+for (let i = 0; i < emberCount; i++) {
+    emberPos[i * 3] = (Math.random() - 0.5) * 8;
+    emberPos[i * 3 + 1] = 0.6 + Math.random() * 6;
+    emberPos[i * 3 + 2] = -2 - Math.random() * 6;
+    emberPhase[i] = Math.random() * Math.PI * 2;
+}
+emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
+emberGeo.setAttribute('phase', new THREE.BufferAttribute(emberPhase, 1));
+const emberMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+        attribute float phase;
+        varying float vPhase;
+        void main() {
+            vPhase = phase;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = (170.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    `,
+    fragmentShader: `
+        varying float vPhase;
+        void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float d = length(uv);
+            float alpha = smoothstep(0.55, 0.0, d) * (0.55 + 0.45 * sin(vPhase));
+            gl_FragColor = vec4(1.0, 0.77, 0.42, alpha * 0.42);
+        }
+    `
+});
+const emberParticles = new THREE.Points(emberGeo, emberMaterial);
+scene.add(emberParticles);
 
 
 // Stick (Dùi) setup
@@ -889,19 +977,33 @@ function animate() {
         ages[i] += delta;
         if (ages[i] > 8.0) {
             ages[i] = 0.0;
-            positions[i * 3] = nhangGroup.position.x + (Math.random() - 0.5) * 0.04;
+            positions[i * 3] = nhangGroup.position.x + (Math.random() - 0.5) * 0.06;
             positions[i * 3 + 1] = nhangGroup.position.y + 2.5;
-            positions[i * 3 + 2] = nhangGroup.position.z + (Math.random() - 0.5) * 0.04;
+            positions[i * 3 + 2] = nhangGroup.position.z + (Math.random() - 0.5) * 0.06;
         } else {
             const ageNorm = ages[i] / 8.0;
-            const sway = ageNorm * ageNorm * 1.2;
-            positions[i * 3] += Math.sin(ages[i] * 3.0 + i * 1.3) * sway * delta + (Math.random() - 0.5) * 0.015 * delta;
-            positions[i * 3 + 1] += (0.18 + ageNorm * 0.45) * delta;
-            positions[i * 3 + 2] += Math.cos(ages[i] * 2.2 + i * 0.9) * sway * delta;
+            const sway = ageNorm * ageNorm * 1.45;
+            positions[i * 3] += Math.sin(ages[i] * 2.8 + i * 1.3) * sway * delta + (Math.random() - 0.5) * 0.018 * delta;
+            positions[i * 3 + 1] += (0.16 + ageNorm * 0.52) * delta;
+            positions[i * 3 + 2] += Math.cos(ages[i] * 2.15 + i * 0.9) * sway * delta;
         }
     }
     smokeParticles.geometry.attributes.position.needsUpdate = true;
     smokeParticles.geometry.attributes.age.needsUpdate = true;
+
+    const emberPositions = emberParticles.geometry.attributes.position.array;
+    const emberPhases = emberParticles.geometry.attributes.phase.array;
+    for (let i = 0; i < emberCount; i++) {
+        emberPhases[i] += delta * (0.7 + (i % 5) * 0.08);
+        emberPositions[i * 3] += Math.sin(time * 0.35 + i) * 0.0025;
+        emberPositions[i * 3 + 1] += Math.sin(emberPhases[i]) * 0.0035;
+        emberPositions[i * 3 + 2] += Math.cos(time * 0.22 + i) * 0.0018;
+    }
+    emberParticles.geometry.attributes.position.needsUpdate = true;
+    emberParticles.geometry.attributes.phase.needsUpdate = true;
+
+    sunGlow.material.opacity = 0.12 + Math.sin(time * 0.8) * 0.02;
+    floorGlow.material.opacity = 0.15 + Math.sin(time * 0.6 + 1.5) * 0.02;
 
     // ─── Camera Shake ───
     if (shakeIntensity > 0.001) {
