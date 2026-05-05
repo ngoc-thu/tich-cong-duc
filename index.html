@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Tiêu chuẩn SEO Tầm Vũ Trụ (Giải trí) -->
+    <title>Gõ Mõ Online 3D - Tích Lũy Công Đức, Vượt Ải Hồng Trần</title>
+    <meta name="title" content="Gõ Mõ Online 3D - Giải Nghiệp Chướng, Buff Nhân Phẩm">
+    <meta name="description" content="Ứng dụng gõ mõ và gõ chuông 3D cực mượt. Đau đầu vì KPI? Tụt mode vì deadline? Hãy vào gõ mõ tích điểm công đức on-line ngay để giải nghiệp, nhẹ nhõm cõi lòng và đua Top Đại Thần toàn server!">
+    <meta name="keywords" content="gõ mõ online, công đức online, gõ mõ 3d, xả stress, giải nghiệp, wooden fish online, tụng kinh, xả xui, tịnh tâm, gõ mỏ">
+    <meta name="author" content="Gõ Mõ Team">
+    <!-- Open Graph / MXH -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Gõ Mõ Online 3D - Tích Lũy Công Đức Đỉnh Cao">
+    <meta property="og:description" content="Bạn đang stress? Hãy vào gõ mõ ngay để xả nghiệp, buff nhân phẩm và xưng bá bảng vàng công đức toàn server!">
+    <!-- Hết phần SEO -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div id="ui">
+        <!-- Auth Panel -->
+        <div id="auth-panel">
+            <button id="btn-login" class="nav-btn">Đăng nhập</button>
+            <div id="user-info" style="display:none;">
+                <img id="user-avatar" src="" alt="avatar">
+                <div class="user-text">
+                    <div id="user-name">Người Mới</div>
+                    <div id="user-title">Người Mới Tu</div>
+                </div>
+                <button id="btn-logout" class="nav-btn sm">Thoát</button>
+            </div>
+        </div>
+
+        <div id="merit">0</div>
+        <div id="label">công đức</div>
+        <div id="streak"></div>
+    </div>
+
+    <!-- Side Action Buttons -->
+    <div id="side-buttons">
+        <button id="btn-leaderboard" class="circle-btn" title="Bảng Xếp Hạng">🏆</button>
+        <button id="btn-share" title="Chia Sẻ">📤</button>
+        <button id="btn-donate" class="circle-btn" title="Góc Từ Bi">💖</button>
+        <button id="btn-mute" class="circle-btn" title="Tắt/Bật Âm Thanh">🔊</button>
+    </div>
+
+    <!-- Combo Display (center screen) -->
+    <div id="combo-display" style="opacity:0;">
+        <div id="combo-number">0</div>
+        <div id="combo-label">COMBO 🔥</div>
+    </div>
+
+    <div id="hint">Click hoặc chạm trực tiếp để gõ</div>
+    <div id="blessing">Mỗi tiếng mõ là một lần giải nghiệp 🙏</div>
+    <div id="disclaimer">Lưu ý: Ứng dụng mang tính chất giải trí và xả stress, hoàn toàn không có ý báng bổ hay xúc phạm tôn giáo. Xin hoan hỉ! 🙏</div>
+
+    <!-- Modals -->
+    <div id="leaderboard-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn"
+                onclick="document.getElementById('leaderboard-modal').style.display='none'">×</button>
+            <h2>Công Đức Thạch 🪨</h2>
+            <div id="leaderboard-list">
+                <!-- Data populated dynamically via JS -->
+            </div>
+        </div>
+    </div>
+
+    <div id="donate-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="document.getElementById('donate-modal').style.display='none'">×</button>
+            <h2>Góc Từ Bi 🪷</h2>
+
+            <!-- Animated Donation Box -->
+            <div id="donation-box-container">
+                <div id="coin-burst" style="display:none;">
+                    <span class="coin">🪙</span><span class="coin">🪙</span><span class="coin">💰</span>
+                    <span class="coin">🪙</span><span class="coin">⭐</span><span class="coin">🪙</span>
+                </div>
+                <div id="donation-box">
+                    <div id="box-lid">🪣</div>
+                    <div id="box-body">🎁</div>
+                </div>
+                <div id="donation-thanks" style="display:none;">
+                    <div class="thanks-title">Nam Mô A Di Đà Phật 🙏</div>
+                    <div class="thanks-sub">Cảm ơn thí chủ đã từ tâm!<br>Phúc báo vô lượng ắt sẽ đến! ✨</div>
+                </div>
+            </div>
+
+            <p style="text-align:center; margin:12px 0 8px; color:#8B4513; font-size:14px;">Đóng góp chút lòng thành để duy trì server và bát hương 😅</p>
+            <img src="assets/imgs/qr-code-momo.jpg" alt="Donate QR Code"
+                style="width:180px; margin: 0 auto 16px; display:block; border-radius:12px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+            <button id="btn-thank-donor" onclick="triggerDonationAnimation()" style="
+                display:block; margin:0 auto; padding:10px 24px; background:#D4AF37; border:none;
+                border-radius:20px; font-family:'Noto Serif',serif; font-size:15px; font-weight:bold;
+                color:white; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.15);
+                transition: transform 0.1s, opacity 0.2s;">
+                🪙 Tôi Đã Cúng Dường!
+            </button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (Version 8 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script src="js/config.js"></script>
+    <script src="js/backend.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>

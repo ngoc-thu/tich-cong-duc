@@ -1,0 +1,12 @@
+{
+  "users": {
+    "user_3d29d0bd7eaf": {
+      "uid": "user_3d29d0bd7eaf",
+      "displayName": "Airi Test",
+      "photoURL": "https://ui-avatars.com/api/?name=Airi%20Test&background=EEDC82&color=8B4513",
+      "merit": 0,
+      "createdAt": "2026-05-05T02:03:56.797Z",
+      "updatedAt": "2026-05-05T02:03:56.797Z"
+    }
+  }
+}
