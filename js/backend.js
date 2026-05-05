@@ -88,6 +88,22 @@ function makeLocalUser({ uid, displayName, photoURL, merit = 0, createdAt, updat
     };
 }
 
+function storeLocalMirror(userLike, meritOverride) {
+    const users = readLocalUsers();
+    const existing = users[userLike.uid] || {};
+    const user = makeLocalUser({
+        uid: userLike.uid,
+        displayName: userLike.displayName || existing.displayName || 'Người Mới',
+        photoURL: userLike.photoURL || existing.photoURL,
+        merit: meritOverride ?? userLike.merit ?? existing.merit ?? 0,
+        createdAt: existing.createdAt,
+        updatedAt: new Date().toISOString()
+    });
+    users[user.uid] = user;
+    writeLocalUsers(users);
+    return user;
+}
+
 const FirebaseBackend = {
     async login() {
         const provider = new firebase.auth.GoogleAuthProvider();
@@ -112,57 +128,84 @@ const FirebaseBackend = {
     async ensureProfile(user) {
         if (!user) return null;
         const ref = firebaseDb.collection('users').doc(user.uid);
-        const snap = await ref.get();
         const payload = {
             displayName: user.displayName || 'Người Mới',
             photoURL: user.photoURL || fallbackAvatar(user.displayName),
             email: user.email || '',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        if (!snap.exists) {
-            payload.merit = 0;
-            payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        try {
+            const snap = await ref.get();
+            if (!snap.exists) {
+                payload.merit = 0;
+                payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
+            await ref.set(payload, { merge: true });
+            const merged = (await ref.get()).data() || {};
+            return {
+                uid: user.uid,
+                displayName: merged.displayName || user.displayName || 'Người Mới',
+                photoURL: merged.photoURL || user.photoURL || fallbackAvatar(user.displayName),
+                merit: Number(merged.merit || 0)
+            };
+        } catch (e) {
+            console.warn('Firebase profile unavailable, falling back to local mirror:', e);
+            enableLocalMode();
+            return storeLocalMirror({
+                uid: user.uid,
+                displayName: user.displayName || 'Người Mới',
+                photoURL: user.photoURL || fallbackAvatar(user.displayName),
+                merit: 0
+            });
         }
-        await ref.set(payload, { merge: true });
-        const merged = (await ref.get()).data() || {};
-        return {
-            uid: user.uid,
-            displayName: merged.displayName || user.displayName || 'Người Mới',
-            photoURL: merged.photoURL || user.photoURL || fallbackAvatar(user.displayName),
-            merit: Number(merged.merit || 0)
-        };
     },
     async syncScore(uid, merit) {
-        await firebaseDb.collection('users').doc(uid).set({
-            merit: Math.floor(merit),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        return { ok: true, merit: Math.floor(merit) };
+        try {
+            await firebaseDb.collection('users').doc(uid).set({
+                merit: Math.floor(merit),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            return { ok: true, merit: Math.floor(merit) };
+        } catch (e) {
+            enableLocalMode();
+            storeLocalMirror({ uid, displayName: currentUser?.displayName, photoURL: currentUser?.photoURL }, merit);
+            return { ok: true, merit: Math.floor(merit) };
+        }
     },
     async getUser(uid) {
-        const doc = await firebaseDb.collection('users').doc(uid).get();
-        if (!doc.exists) throw new Error('Không tìm thấy user');
-        const data = doc.data() || {};
-        return {
-            uid,
-            displayName: data.displayName || 'Người Mới',
-            photoURL: data.photoURL || fallbackAvatar(data.displayName),
-            merit: Number(data.merit || 0)
-        };
-    },
-    async leaderboard() {
-        const snap = await firebaseDb.collection('users').orderBy('merit', 'desc').limit(100).get();
-        const rows = [];
-        snap.forEach((doc) => {
+        try {
+            const doc = await firebaseDb.collection('users').doc(uid).get();
+            if (!doc.exists) throw new Error('Không tìm thấy user');
             const data = doc.data() || {};
-            rows.push({
-                uid: doc.id,
+            return {
+                uid,
                 displayName: data.displayName || 'Người Mới',
                 photoURL: data.photoURL || fallbackAvatar(data.displayName),
                 merit: Number(data.merit || 0)
+            };
+        } catch (e) {
+            enableLocalMode();
+            return await LocalBackend.getUser(uid);
+        }
+    },
+    async leaderboard() {
+        try {
+            const snap = await firebaseDb.collection('users').orderBy('merit', 'desc').limit(100).get();
+            const rows = [];
+            snap.forEach((doc) => {
+                const data = doc.data() || {};
+                rows.push({
+                    uid: doc.id,
+                    displayName: data.displayName || 'Người Mới',
+                    photoURL: data.photoURL || fallbackAvatar(data.displayName),
+                    merit: Number(data.merit || 0)
+                });
             });
-        });
-        return rows;
+            return rows;
+        } catch (e) {
+            enableLocalMode();
+            return await LocalBackend.leaderboard();
+        }
     },
     async score(uid) {
         const user = await this.getUser(uid);
@@ -244,10 +287,10 @@ window.Backend = {
                 const fbUser = await FirebaseBackend.login();
                 if (!fbUser) return;
                 const user = await FirebaseBackend.ensureProfile(fbUser);
-                currentUser = user;
-                localStorage.setItem('go_mo_user', JSON.stringify(user));
-                this.currentUser = user;
-                this.onAuthStateChangedCallback && this.onAuthStateChangedCallback(user);
+                currentUser = storeLocalMirror(user);
+                localStorage.setItem('go_mo_user', JSON.stringify(currentUser));
+                this.currentUser = currentUser;
+                this.onAuthStateChangedCallback && this.onAuthStateChangedCallback(currentUser);
                 return;
             } catch (e) {
                 alert('Lỗi đăng nhập Google: ' + e.message);
@@ -315,10 +358,10 @@ window.Backend = {
                     return;
                 }
                 const profile = await FirebaseBackend.ensureProfile(user);
-                currentUser = profile;
-                this.currentUser = profile;
-                localStorage.setItem('go_mo_user', JSON.stringify(profile));
-                callback(profile);
+                currentUser = storeLocalMirror(profile);
+                this.currentUser = currentUser;
+                localStorage.setItem('go_mo_user', JSON.stringify(currentUser));
+                callback(currentUser);
             });
             return;
         }
