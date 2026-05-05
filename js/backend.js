@@ -1,5 +1,7 @@
-const API_BASE_URL = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL)
-    ? window.APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
+const APP_CONFIG = window.APP_CONFIG || {};
+const FIREBASE_CONFIG = APP_CONFIG.firebase || {};
+const API_BASE_URL = APP_CONFIG.API_BASE_URL
+    ? APP_CONFIG.API_BASE_URL.replace(/\/$/, '')
     : 'http://127.0.0.1:8787/api';
 
 let currentUser = null;
@@ -8,6 +10,10 @@ const LOCAL_USERS_KEY = 'go_mo_local_users';
 
 function fallbackAvatar(name) {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Nguoi Moi')}&background=EEDC82&color=8B4513`;
+}
+
+function hasFirebaseConfig() {
+    return Boolean(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.authDomain && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.appId);
 }
 
 function shouldForceLocalMode() {
@@ -22,6 +28,23 @@ function shouldForceLocalMode() {
 }
 
 let useLocalMode = shouldForceLocalMode();
+let useFirebaseMode = false;
+let firebaseAuth = null;
+let firebaseDb = null;
+
+if (hasFirebaseConfig() && window.firebase) {
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        firebaseAuth = firebase.auth();
+        firebaseDb = firebase.firestore();
+        useFirebaseMode = true;
+        useLocalMode = false;
+    } catch (e) {
+        console.error('Firebase init failed:', e);
+    }
+}
 
 function readLocalUsers() {
     return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '{}');
@@ -64,6 +87,88 @@ function makeLocalUser({ uid, displayName, photoURL, merit = 0, createdAt, updat
         updatedAt: updatedAt || new Date().toISOString()
     };
 }
+
+const FirebaseBackend = {
+    async login() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        try {
+            const result = await firebaseAuth.signInWithPopup(provider);
+            return result.user;
+        } catch (e) {
+            if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+                await firebaseAuth.signInWithRedirect(provider);
+                return null;
+            }
+            throw e;
+        }
+    },
+    async logout() {
+        await firebaseAuth.signOut();
+    },
+    onAuthStateChanged(callback) {
+        return firebaseAuth.onAuthStateChanged(callback);
+    },
+    async ensureProfile(user) {
+        if (!user) return null;
+        const ref = firebaseDb.collection('users').doc(user.uid);
+        const snap = await ref.get();
+        const payload = {
+            displayName: user.displayName || 'Người Mới',
+            photoURL: user.photoURL || fallbackAvatar(user.displayName),
+            email: user.email || '',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (!snap.exists) {
+            payload.merit = 0;
+            payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        }
+        await ref.set(payload, { merge: true });
+        const merged = (await ref.get()).data() || {};
+        return {
+            uid: user.uid,
+            displayName: merged.displayName || user.displayName || 'Người Mới',
+            photoURL: merged.photoURL || user.photoURL || fallbackAvatar(user.displayName),
+            merit: Number(merged.merit || 0)
+        };
+    },
+    async syncScore(uid, merit) {
+        await firebaseDb.collection('users').doc(uid).set({
+            merit: Math.floor(merit),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        return { ok: true, merit: Math.floor(merit) };
+    },
+    async getUser(uid) {
+        const doc = await firebaseDb.collection('users').doc(uid).get();
+        if (!doc.exists) throw new Error('Không tìm thấy user');
+        const data = doc.data() || {};
+        return {
+            uid,
+            displayName: data.displayName || 'Người Mới',
+            photoURL: data.photoURL || fallbackAvatar(data.displayName),
+            merit: Number(data.merit || 0)
+        };
+    },
+    async leaderboard() {
+        const snap = await firebaseDb.collection('users').orderBy('merit', 'desc').limit(100).get();
+        const rows = [];
+        snap.forEach((doc) => {
+            const data = doc.data() || {};
+            rows.push({
+                uid: doc.id,
+                displayName: data.displayName || 'Người Mới',
+                photoURL: data.photoURL || fallbackAvatar(data.displayName),
+                merit: Number(data.merit || 0)
+            });
+        });
+        return rows;
+    },
+    async score(uid) {
+        const user = await this.getUser(uid);
+        return { merit: Number(user.merit || 0) };
+    }
+};
 
 const LocalBackend = {
     login: async function (saved, displayName) {
@@ -134,6 +239,22 @@ window.Backend = {
     },
 
     login: async function () {
+        if (useFirebaseMode) {
+            try {
+                const fbUser = await FirebaseBackend.login();
+                if (!fbUser) return;
+                const user = await FirebaseBackend.ensureProfile(fbUser);
+                currentUser = user;
+                localStorage.setItem('go_mo_user', JSON.stringify(user));
+                this.currentUser = user;
+                this.onAuthStateChangedCallback && this.onAuthStateChangedCallback(user);
+                return;
+            } catch (e) {
+                alert('Lỗi đăng nhập Google: ' + e.message);
+                return;
+            }
+        }
+
         const saved = JSON.parse(localStorage.getItem('go_mo_user') || 'null');
         const defaultName = saved?.displayName || '';
         const displayName = prompt('Nhập pháp danh của bạn:', defaultName);
@@ -172,6 +293,9 @@ window.Backend = {
     },
 
     logout: async function () {
+        if (useFirebaseMode) {
+            await FirebaseBackend.logout();
+        }
         currentUser = null;
         this.currentUser = null;
         localStorage.removeItem('go_mo_user');
@@ -180,6 +304,25 @@ window.Backend = {
 
     onAuthStateChanged: function (callback) {
         this.onAuthStateChangedCallback = callback;
+
+        if (useFirebaseMode) {
+            FirebaseBackend.onAuthStateChanged(async (user) => {
+                if (!user) {
+                    currentUser = null;
+                    this.currentUser = null;
+                    localStorage.removeItem('go_mo_user');
+                    callback(null);
+                    return;
+                }
+                const profile = await FirebaseBackend.ensureProfile(user);
+                currentUser = profile;
+                this.currentUser = profile;
+                localStorage.setItem('go_mo_user', JSON.stringify(profile));
+                callback(profile);
+            });
+            return;
+        }
+
         const saved = JSON.parse(localStorage.getItem('go_mo_user') || 'null');
         if (saved?.uid) {
             const loader = useLocalMode ? LocalBackend.getUser(saved.uid) : api(`/users/${saved.uid}`);
@@ -217,7 +360,9 @@ window.Backend = {
     syncScore: async function (score) {
         if (!currentUser?.uid) return;
         try {
-            if (useLocalMode) {
+            if (useFirebaseMode) {
+                await FirebaseBackend.syncScore(currentUser.uid, score);
+            } else if (useLocalMode) {
                 await LocalBackend.syncScore(currentUser.uid, score);
             } else {
                 await api('/score', {
@@ -233,6 +378,7 @@ window.Backend = {
 
     getLeaderboard: async function () {
         try {
+            if (useFirebaseMode) return await FirebaseBackend.leaderboard();
             return useLocalMode ? await LocalBackend.leaderboard() : await api('/leaderboard');
         } catch (e) {
             enableLocalMode();
@@ -243,7 +389,11 @@ window.Backend = {
     getInitialScore: async function () {
         if (!currentUser?.uid) return 0;
         try {
-            const data = useLocalMode ? await LocalBackend.score(currentUser.uid) : await api(`/score/${currentUser.uid}`);
+            const data = useFirebaseMode
+                ? await FirebaseBackend.score(currentUser.uid)
+                : useLocalMode
+                    ? await LocalBackend.score(currentUser.uid)
+                    : await api(`/score/${currentUser.uid}`);
             return data.merit || 0;
         } catch (e) {
             enableLocalMode();
