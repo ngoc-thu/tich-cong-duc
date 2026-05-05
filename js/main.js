@@ -941,30 +941,25 @@ function updateAuthUI() {
 btnLogin.onclick = () => Backend.login();
 btnLogout.onclick = () => Backend.logout();
 
-// Load local stored score immediately to prevent visual reset
-const localStored = parseInt(localStorage.getItem('go_mo_offline_score') || 0);
-if (localStored > meritCount) {
-    meritCount = localStored;
-    meritEl.textContent = meritCount.toLocaleString();
-}
-
 // Establish auth state callback
 Backend.onAuthStateChanged(async (user) => {
     Backend.currentUser = user;
-    updateAuthUI();
+
     if (user) {
         const storedScore = await Backend.getInitialScore();
-        if (storedScore > meritCount) {
-            meritCount = storedScore;
-            meritEl.textContent = meritCount.toLocaleString(); // Fix missing toLocaleString
-        }
-        updateAuthUI(); // reload title with correct score
+        meritCount = Number(storedScore || 0);
+        meritEl.textContent = meritCount.toLocaleString();
+    } else {
+        meritCount = 0;
+        meritEl.textContent = '0';
+        streakEl.textContent = '';
     }
+
+    updateAuthUI();
 });
 
 // Trigger immediate save on tab close/reload
 window.addEventListener('beforeunload', () => {
-    localStorage.setItem('go_mo_offline_score', meritCount);
     if (Backend.currentUser && meritCount > 0) {
         Backend.syncScore(meritCount);
     }
