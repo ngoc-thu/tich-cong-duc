@@ -151,11 +151,12 @@ const FirebaseBackend = {
         } catch (e) {
             console.warn('Firebase profile unavailable, falling back to local mirror:', e);
             enableLocalMode();
+            const existing = readLocalUsers()[user.uid] || {};
             return storeLocalMirror({
                 uid: user.uid,
-                displayName: user.displayName || 'Người Mới',
-                photoURL: user.photoURL || fallbackAvatar(user.displayName),
-                merit: 0
+                displayName: user.displayName || existing.displayName || 'Người Mới',
+                photoURL: user.photoURL || existing.photoURL || fallbackAvatar(user.displayName),
+                merit: Number(existing.merit || 0)
             });
         }
     },
