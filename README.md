@@ -2,6 +2,17 @@
 
 Web gõ mõ 3D với frontend static và backend local lưu dữ liệu ngay trên máy chạy server.
 
+## Truy cập web
+
+- Website: https://tich-cong-duc.vercel.app
+- Repo: https://github.com/ngoc-thu/tich-cong-duc
+
+## Ủng hộ cúng dường
+
+Nếu thấy web vui và muốn ủng hộ duy trì server, mọi người có thể quét mã QR bên dưới 🙏
+
+![Mã QR ủng hộ cúng dường](assets/imgs/qr-code-momo.jpg)
+
 ## Cấu trúc
 
 - `index.html`, `css/`, `js/`, `assets/`: frontend deploy lên Vercel
